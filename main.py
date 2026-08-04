@@ -1,4 +1,4 @@
-"""큐브 6면 수동 + 자동 캡처와 상태 조립을 연결하는 프로토타입 실행 진입점."""
+"""큐브 6면 자동 캡처와 상태 조립을 연결하는 프로토타입 실행 진입점."""
 
 from __future__ import annotations
 
@@ -69,6 +69,7 @@ class PendingCapture:
             original_frame=self.original_frame,
             warped_face=self.samples.warped_face,
             obb_corners=self.detection.corners,
+            cell_regions=self.samples.cell_regions,
         )
 
 
