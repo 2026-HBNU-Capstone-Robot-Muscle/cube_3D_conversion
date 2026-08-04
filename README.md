@@ -51,6 +51,12 @@ python main.py
 
 카메라 화면에서 안내하는 면을 정면에 둔 뒤 `Space` 키를 누릅니다. 품질 검사를 통과하면 현재 프레임에서 면 탐지, 색상 추출, 저장이 자동으로 수행됩니다.
 
+### 기존 정지 기반 자동 캡처 모드
+
+```powershell
+python main.py --auto-capture
+```
+
 ### 권장 실행: 새 출력 폴더 사용
 
 ```powershell
