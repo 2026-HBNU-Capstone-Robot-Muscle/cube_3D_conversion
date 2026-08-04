@@ -331,8 +331,18 @@ class FaceTracker:
         self.confidence_threshold = confidence_threshold
         self.device = device
 
-    def process(self, frame: np.ndarray) -> FrameObservation:
-        """OpenCV BGR 프레임에서 면 하나를 탐지하고 트리거를 갱신한다."""
+    def process(
+        self,
+        frame: np.ndarray,
+        *,
+        update_trigger: bool = True,
+    ) -> FrameObservation:
+        """OpenCV BGR 프레임에서 면을 탐지하고 필요할 때만 트리거를 갱신한다.
+
+        ``update_trigger=False``는 사용자가 키를 눌러 촬영하는 수동 모드용이다.
+        이 경우에도 YOLO 탐지와 품질 검사는 매 프레임 수행하지만, 정지 판정 이력과
+        자동 캡처 잠금 상태는 변경하지 않는다.
+        """
         if frame is None or frame.size == 0:
             raise ValueError("frame must be a non-empty OpenCV image")
 
@@ -349,12 +359,20 @@ class FaceTracker:
 
         # 품질 미달 상태는 정지 판정 이력에 넣지 않아, 저품질 면이 잠금 상태를
         # 만들거나 자동 캡처되는 일을 방지한다.
-        trigger_input = detection if quality is None or quality.accepted else None
-        trigger = self.trigger.update(trigger_input)
-        if quality is not None and not quality.accepted:
-            trigger = replace(
-                trigger,
-                message="캡처 대기: " + ", ".join(quality.reasons),
+        if update_trigger:
+            trigger_input = detection if quality is None or quality.accepted else None
+            trigger = self.trigger.update(trigger_input)
+            if quality is not None and not quality.accepted:
+                trigger = replace(
+                    trigger,
+                    message="캡처 대기: " + ", ".join(quality.reasons),
+                )
+        else:
+            trigger = TriggerState(
+                should_capture=False,
+                locked=False,
+                stable_frames=0,
+                message="수동 촬영 대기: Space 키를 누르세요.",
             )
         return FrameObservation(
             detection=detection,
