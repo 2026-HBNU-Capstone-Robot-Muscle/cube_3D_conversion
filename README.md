@@ -121,6 +121,7 @@ captures/
 ├── F/
 │   ├── original.png      # 캡처 당시 원본 프레임
 │   ├── warped.png        # 원근보정된 큐브 면
+│   ├── debug.png         # 원본 YOLO OBB와 보정 3×3 격자를 결합한 확인 이미지
 │   └── metadata.json     # OBB, BGR/Lab, confidence, 회전값 등
 ├── R/
 ├── B/
