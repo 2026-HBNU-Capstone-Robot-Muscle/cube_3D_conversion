@@ -64,6 +64,7 @@ class FaceCapture:
     warped_face: Optional[np.ndarray] = None
     obb_corners: Optional[np.ndarray] = None
     corrected_corners: Optional[np.ndarray] = None
+    cell_regions: Optional[tuple[tuple[int, int, int, int], ...]] = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "face_name", _validate_face_name(self.face_name))
@@ -77,6 +78,12 @@ class FaceCapture:
             raise ValueError("rotation_quarter_turns must be between 0 and 3")
         if self.confidence is not None and not 0.0 <= self.confidence <= 1.0:
             raise ValueError("confidence must be between 0 and 1")
+        if self.cell_regions is not None:
+            if len(self.cell_regions) != 9:
+                raise ValueError("cell_regions must contain exactly 9 regions")
+            for region in self.cell_regions:
+                if len(region) != 4:
+                    raise ValueError("each cell region must be (left, top, right, bottom)")
         if not self.timestamp:
             object.__setattr__(
                 self,
@@ -293,6 +300,8 @@ class CaptureArchive:
             self._write_image(face_directory / "original.png", capture.original_frame)
         if capture.warped_face is not None:
             self._write_image(face_directory / "warped.png", capture.warped_face)
+        if capture.original_frame is not None and capture.warped_face is not None:
+            self._write_image(face_directory / "debug.png", self._build_debug_image(capture))
 
         metadata = {
             "face_name": capture.face_name,
@@ -304,6 +313,7 @@ class CaptureArchive:
             "cell_colors_lab": bgr_to_lab(capture.cell_colors_bgr).tolist(),
             "obb_corners": self._array_or_none(capture.obb_corners),
             "corrected_corners": self._array_or_none(capture.corrected_corners),
+            "cell_regions": None if capture.cell_regions is None else [list(region) for region in capture.cell_regions],
         }
         metadata_path = face_directory / "metadata.json"
         metadata_path.write_text(
@@ -315,6 +325,97 @@ class CaptureArchive:
     def _write_image(path: Path, image: np.ndarray) -> None:
         if not cv2.imwrite(str(path), image):
             raise OSError(f"failed to save image: {path}")
+
+    @staticmethod
+    def _build_debug_image(capture: FaceCapture) -> np.ndarray:
+        """원본 OBB 탐지와 원근보정 3x3 분할을 한 장에 보여주는 디버그 이미지를 만든다."""
+        assert capture.original_frame is not None
+        assert capture.warped_face is not None
+
+        original = capture.original_frame.copy()
+        if capture.obb_corners is not None:
+            corners = np.asarray(capture.obb_corners, dtype=np.int32).reshape((-1, 1, 2))
+            cv2.polylines(original, [corners], True, (0, 255, 0), 3)
+        confidence_text = "n/a" if capture.confidence is None else f"{capture.confidence:.2f}"
+        cv2.putText(
+            original,
+            f"YOLO OBB | {capture.face_name} | conf {confidence_text}",
+            (16, 34),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (0, 255, 0),
+            2,
+        )
+
+        # 원본 프레임과 보정 면의 높이를 맞춰 한 장의 발표용 이미지로 결합한다.
+        panel_height = 420
+        scale = panel_height / original.shape[0]
+        original_panel = cv2.resize(
+            original,
+            (max(1, int(round(original.shape[1] * scale))), panel_height),
+            interpolation=cv2.INTER_AREA,
+        )
+
+        grid_panel = cv2.resize(
+            capture.warped_face,
+            (panel_height, panel_height),
+            interpolation=cv2.INTER_NEAREST,
+        )
+        CaptureArchive._draw_grid_overlay(
+            grid_panel,
+            capture.cell_regions,
+            source_size=(capture.warped_face.shape[1], capture.warped_face.shape[0]),
+        )
+
+        gap = 12
+        header_height = 38
+        canvas = np.full(
+            (panel_height + header_height, original_panel.shape[1] + gap + grid_panel.shape[1], 3),
+            255,
+            dtype=np.uint8,
+        )
+        canvas[header_height:, : original_panel.shape[1]] = original_panel
+        canvas[header_height:, original_panel.shape[1] + gap :] = grid_panel
+        cv2.putText(canvas, "YOLO OBB detection", (10, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (30, 30, 30), 2)
+        cv2.putText(
+            canvas,
+            "Perspective correction + 3x3 grid",
+            (original_panel.shape[1] + gap + 10, 26),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (30, 30, 30),
+            2,
+        )
+        return canvas
+
+    @staticmethod
+    def _draw_grid_overlay(
+        image: np.ndarray,
+        cell_regions: Optional[tuple[tuple[int, int, int, int], ...]],
+        *,
+        source_size: tuple[int, int],
+    ) -> None:
+        """보정 면 위에 3x3 경계와 실제 색상 샘플 영역을 그린다."""
+        height, width = image.shape[:2]
+        for position in (width // 3, (width * 2) // 3):
+            cv2.line(image, (position, 0), (position, height), (255, 255, 255), 2)
+        for position in (height // 3, (height * 2) // 3):
+            cv2.line(image, (0, position), (width, position), (255, 255, 255), 2)
+
+        if cell_regions is None:
+            return
+        # 저장 전의 보정 면 좌표를, 디버그 패널의 크기로 변환한다.
+        source_width, source_height = source_size
+        scale_x = width / source_width
+        scale_y = height / source_height
+        for left, top, right, bottom in cell_regions:
+            cv2.rectangle(
+                image,
+                (int(left * scale_x), int(top * scale_y)),
+                (int((right - 1) * scale_x), int((bottom - 1) * scale_y)),
+                (0, 255, 0),
+                2,
+            )
 
     @staticmethod
     def _array_or_none(value: Optional[np.ndarray]) -> Optional[list[object]]:
