@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>큐브 스캔 3D 뷰어</title>
+  <style>
+    :root { color-scheme: dark; font-family: "Malgun Gothic", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; overflow: hidden; background: #111827; color: #f8fafc; }
+    canvas { display: block; }
+    #panel { position: fixed; top: 16px; left: 16px; z-index: 2; width: min(335px, calc(100vw - 32px)); padding: 16px; border: 1px solid #334155; border-radius: 12px; background: rgb(15 23 42 / 92%); box-shadow: 0 12px 32px rgb(0 0 0 / 35%); }
+    h1 { margin: 0 0 10px; font-size: 19px; }
+    p { margin: 7px 0; font-size: 13px; line-height: 1.5; color: #cbd5e1; }
+    label { display: block; margin-top: 12px; font-size: 13px; color: #cbd5e1; }
+    input { width: 100%; margin-top: 6px; }
+    button { margin-top: 8px; padding: 8px 11px; border: 0; border-radius: 7px; cursor: pointer; background: #2563eb; color: white; font-weight: 700; }
+    #status { min-height: 20px; margin-top: 10px; font-size: 13px; }
+    #legend { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 12px; }
+    .legend-item { display: flex; align-items: center; gap: 7px; font-size: 12px; }
+    .swatch { width: 16px; height: 16px; border: 1px solid #94a3b8; border-radius: 3px; }
+    #help { position: fixed; right: 16px; bottom: 14px; z-index: 2; padding: 8px 11px; border-radius: 7px; background: rgb(15 23 42 / 85%); color: #cbd5e1; font-size: 12px; }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <section id="panel">
+    <h1>큐브 스캔 3D 뷰어</h1>
+    <p><code>cube_state.json</code>을 불러와 54개 스티커를 표시합니다.</p>
+    <label>상태 JSON 파일<input id="file-input" type="file" accept="application/json,.json"></label>
+    <button id="reset-button" type="button">기본 시점으로</button>
+    <div id="status">상태 파일을 불러오는 중...</div>
+    <div id="legend"></div>
+  </section>
+  <div id="help">마우스 드래그: 회전 · 휠: 확대/축소 · 오른쪽 드래그: 이동</div>
+
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+    const FACE_NAMES = { F: "Front (앞)", R: "Right (오른쪽)", B: "Back (뒤)", L: "Left (왼쪽)", U: "Up (위)", D: "Down (아래)" };
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x111827);
+
+    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 100);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.minDistance = 5;
+    controls.maxDistance = 16;
+    controls.target.set(0, 0, 0);
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x172033, 2.2));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 2.8);
+    keyLight.position.set(5, 7, 8);
+    scene.add(keyLight);
+
+    const cubeGroup = new THREE.Group();
+    scene.add(cubeGroup);
+    const statusElement = document.querySelector("#status");
+    const legendElement = document.querySelector("#legend");
+
+    function resetCamera() {
+      camera.position.set(7.5, 6.4, 8.5);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    }
+
+    // Python/OpenCV의 BGR 배열을 CSS/Three.js가 사용하는 RGB 16진수로 바꾼다.
+    function bgrToHex(bgr) {
+      const [b, g, r] = bgr.map((value) => Math.max(0, Math.min(255, Math.round(value))));
+      return `#${[r, g, b].map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+    }
+
+    function clearCube() {
+      while (cubeGroup.children.length) {
+        const object = cubeGroup.remove(cubeGroup.children[0]);
+        object.traverse((child) => {
+          child.geometry?.dispose();
+          if (Array.isArray(child.material)) child.material.forEach((material) => material.dispose());
+          else child.material?.dispose();
+        });
+      }
+    }
+
+    function addCore() {
+      const geometry = new THREE.BoxGeometry(0.94, 0.94, 0.94);
+      const material = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.48, metalness: 0.05 });
+      for (const x of [-1, 0, 1]) for (const y of [-1, 0, 1]) for (const z of [-1, 0, 1]) {
+        const cubie = new THREE.Mesh(geometry, material);
+        cubie.position.set(x, y, z);
+        cubeGroup.add(cubie);
+      }
+    }
+
+    function facePosition(face, row, col) {
+      const x = col - 1;
+      const y = 1 - row;
+      switch (face) {
+        case "F": return { position: new THREE.Vector3(x, y, 1.51), rotation: new THREE.Euler(0, 0, 0) };
+        case "B": return { position: new THREE.Vector3(1 - col, y, -1.51), rotation: new THREE.Euler(0, Math.PI, 0) };
+        case "R": return { position: new THREE.Vector3(1.51, y, 1 - col), rotation: new THREE.Euler(0, Math.PI / 2, 0) };
+        case "L": return { position: new THREE.Vector3(-1.51, y, col - 1), rotation: new THREE.Euler(0, -Math.PI / 2, 0) };
+        case "U": return { position: new THREE.Vector3(x, 1.51, row - 1), rotation: new THREE.Euler(-Math.PI / 2, 0, 0) };
+        case "D": return { position: new THREE.Vector3(x, -1.51, 1 - row), rotation: new THREE.Euler(Math.PI / 2, 0, 0) };
+        default: throw new Error(`알 수 없는 면: ${face}`);
+      }
+    }
+
+    function addSticker(face, index, hexColor) {
+      const row = Math.floor(index / 3);
+      const col = index % 3;
+      const { position, rotation } = facePosition(face, row, col);
+      const sticker = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.80, 0.80),
+        new THREE.MeshStandardMaterial({ color: hexColor, roughness: 0.36, metalness: 0.02, side: THREE.FrontSide }),
+      );
+      sticker.position.copy(position);
+      sticker.rotation.copy(rotation);
+      cubeGroup.add(sticker);
+    }
+
+    function createFaceLabel(text, position) {
+      const canvas = document.createElement("canvas");
+      canvas.width = 300;
+      canvas.height = 80;
+      const context = canvas.getContext("2d");
+      context.fillStyle = "rgba(15, 23, 42, 0.82)";
+      context.roundRect(3, 3, 294, 74, 12);
+      context.fill();
+      context.fillStyle = "#ffffff";
+      context.font = "bold 34px sans-serif";
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillText(text, 150, 42);
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true }));
+      sprite.position.copy(position);
+      sprite.scale.set(2.25, 0.60, 1);
+      cubeGroup.add(sprite);
+    }
+
+    function addFaceLabels() {
+      createFaceLabel("F / Front", new THREE.Vector3(0, 0, 2.15));
+      createFaceLabel("R / Right", new THREE.Vector3(2.15, 0, 0));
+      createFaceLabel("U / Up", new THREE.Vector3(0, 2.15, 0));
+    }
+
+    function updateLegend(state) {
+      legendElement.replaceChildren();
+      for (const face of state.face_order) {
+        const item = document.createElement("div");
+        item.className = "legend-item";
+        const swatch = document.createElement("span");
+        swatch.className = "swatch";
+        swatch.style.background = bgrToHex(state.center_colors_bgr[face]);
+        item.append(swatch, document.createTextNode(`${face}: ${FACE_NAMES[face]}`));
+        legendElement.appendChild(item);
+      }
+    }
+
+    function renderState(state) {
+      if (!state?.labels_by_face || !state?.center_colors_bgr) throw new Error("cube_state.json 형식이 올바르지 않습니다.");
+      clearCube();
+      addCore();
+      for (const face of state.face_order) {
+        const stickers = state.labels_by_face[face];
+        if (!Array.isArray(stickers) || stickers.length !== 9) throw new Error(`${face} 면의 스티커 수가 9개가 아닙니다.`);
+        stickers.forEach((label, index) => addSticker(face, index, bgrToHex(state.center_colors_bgr[label])));
+      }
+      addFaceLabels();
+      updateLegend(state);
+      statusElement.textContent = state.validation?.is_valid
+        ? "검증 통과: 54개 스티커를 표시 중입니다."
+        : "경고: 검증 실패 상태 데이터입니다. 재촬영 후 다시 불러오세요.";
+      statusElement.style.color = state.validation?.is_valid ? "#86efac" : "#fbbf24";
+    }
+
+    async function loadDefaultState() {
+      try {
+        const response = await fetch("captures/cube_state.json");
+        if (!response.ok) throw new Error("기본 captures/cube_state.json 파일이 없습니다.");
+        renderState(await response.json());
+      } catch (error) {
+        statusElement.textContent = `상태 파일을 선택하세요. (${error.message})`;
+        statusElement.style.color = "#fbbf24";
+      }
+    }
+
+    document.querySelector("#file-input").addEventListener("change", async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      try {
+        renderState(JSON.parse(await file.text()));
+      } catch (error) {
+        statusElement.textContent = `불러오기 실패: ${error.message}`;
+        statusElement.style.color = "#f87171";
+      }
+    });
+    document.querySelector("#reset-button").addEventListener("click", resetCamera);
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    resetCamera();
+    loadDefaultState();
+    renderer.setAnimationLoop(() => {
+      controls.update();
+      renderer.render(scene, camera);
+    });
+  </script>
+</body>
+</html>
