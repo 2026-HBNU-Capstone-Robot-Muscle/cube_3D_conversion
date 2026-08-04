@@ -43,10 +43,6 @@
 
 Python 3.10 이상을 권장합니다.
 
-```powershell
-pip install ultralytics opencv-python numpy
-```
-
 ### 기본 실행: Space 키 수동 캡처
 
 ```powershell
