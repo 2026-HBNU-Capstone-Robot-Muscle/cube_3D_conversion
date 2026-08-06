@@ -246,7 +246,8 @@ def main() -> None:
     parser.add_argument("--min-confidence", type=float, default=0.50, help="최소 YOLO 신뢰도")
     parser.add_argument("--min-area", type=float, default=12_000, help="최소 OBB 면적(px²)")
     parser.add_argument("--min-aspect", type=float, default=0.55, help="최소 OBB 종횡비")
-    parser.add_argument("--min-sharpness", type=float, default=80, help="최소 Laplacian variance")
+    # 최소 화질 선명도 초기값: 80 -> 40
+    parser.add_argument("--min-sharpness", type=float, default=40, help="최소 Laplacian variance")
     parser.add_argument(
         "--confirm-capture",
         action="store_true",
@@ -309,7 +310,9 @@ def main() -> None:
                     break
                 continue
 
+            # 상하좌우가 반전되어 표시되어 뒤집었음
             frame = packet.image
+            # frame = cv2.flip(packet.image, -1)
             observation: Optional[FrameObservation] = None
             if pending is None and completed_result is None:
                 observation = tracker.process(
