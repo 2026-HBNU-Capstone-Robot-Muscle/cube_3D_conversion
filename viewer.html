@@ -1,25 +1,117 @@
 <!doctype html>
 <html lang="ko">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>큐브 스캔 3D 뷰어</title>
   <style>
-    :root { color-scheme: dark; font-family: "Malgun Gothic", sans-serif; }
-    * { box-sizing: border-box; }
-    body { margin: 0; overflow: hidden; background: #111827; color: #f8fafc; }
-    canvas { display: block; }
-    #panel { position: fixed; top: 16px; left: 16px; z-index: 2; width: min(335px, calc(100vw - 32px)); padding: 16px; border: 1px solid #334155; border-radius: 12px; background: rgb(15 23 42 / 92%); box-shadow: 0 12px 32px rgb(0 0 0 / 35%); }
-    h1 { margin: 0 0 10px; font-size: 19px; }
-    p { margin: 7px 0; font-size: 13px; line-height: 1.5; color: #cbd5e1; }
-    label { display: block; margin-top: 12px; font-size: 13px; color: #cbd5e1; }
-    input { width: 100%; margin-top: 6px; }
-    button { margin-top: 8px; padding: 8px 11px; border: 0; border-radius: 7px; cursor: pointer; background: #2563eb; color: white; font-weight: 700; }
-    #status { min-height: 20px; margin-top: 10px; font-size: 13px; }
-    #legend { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 12px; }
-    .legend-item { display: flex; align-items: center; gap: 7px; font-size: 12px; }
-    .swatch { width: 16px; height: 16px; border: 1px solid #94a3b8; border-radius: 3px; }
-    #help { position: fixed; right: 16px; bottom: 14px; z-index: 2; padding: 8px 11px; border-radius: 7px; background: rgb(15 23 42 / 85%); color: #cbd5e1; font-size: 12px; }
+    :root {
+      color-scheme: dark;
+      font-family: "Malgun Gothic", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #111827;
+      color: #f8fafc;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    #panel {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      z-index: 2;
+      width: min(335px, calc(100vw - 32px));
+      padding: 16px;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      background: rgb(15 23 42 / 92%);
+      box-shadow: 0 12px 32px rgb(0 0 0 / 35%);
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 19px;
+    }
+
+    p {
+      margin: 7px 0;
+      font-size: 13px;
+      line-height: 1.5;
+      color: #cbd5e1;
+    }
+
+    label {
+      display: block;
+      margin-top: 12px;
+      font-size: 13px;
+      color: #cbd5e1;
+    }
+
+    input {
+      width: 100%;
+      margin-top: 6px;
+    }
+
+    button {
+      margin-top: 8px;
+      padding: 8px 11px;
+      border: 0;
+      border-radius: 7px;
+      cursor: pointer;
+      background: #2563eb;
+      color: white;
+      font-weight: 700;
+    }
+
+    #status {
+      min-height: 20px;
+      margin-top: 10px;
+      font-size: 13px;
+    }
+
+    #legend {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 12px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+    }
+
+    .swatch {
+      width: 16px;
+      height: 16px;
+      border: 1px solid #94a3b8;
+      border-radius: 3px;
+    }
+
+    #help {
+      position: fixed;
+      right: 16px;
+      bottom: 14px;
+      z-index: 2;
+      padding: 8px 11px;
+      border-radius: 7px;
+      background: rgb(15 23 42 / 85%);
+      color: #cbd5e1;
+      font-size: 12px;
+    }
   </style>
   <script type="importmap">
     {
@@ -30,6 +122,7 @@
     }
   </script>
 </head>
+
 <body>
   <section id="panel">
     <h1>큐브 스캔 3D 뷰어</h1>
@@ -62,10 +155,11 @@
     controls.maxDistance = 16;
     controls.target.set(0, 0, 0);
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x172033, 2.2));
-    const keyLight = new THREE.DirectionalLight(0xffffff, 2.8);
-    keyLight.position.set(5, 7, 8);
-    scene.add(keyLight);
+    // 조명 효과 제거: MeshBasicMaterial을 사용하여 빛의 영향을 받지 않는 단색으로 렌더링합니다.
+    // scene.add(new THREE.HemisphereLight(0xffffff, 0x172033, 2.2));
+    // const keyLight = new THREE.DirectionalLight(0xffffff, 2.8);
+    // keyLight.position.set(5, 7, 8);
+    // scene.add(keyLight);
 
     const cubeGroup = new THREE.Group();
     scene.add(cubeGroup);
@@ -97,7 +191,11 @@
 
     function addCore() {
       const geometry = new THREE.BoxGeometry(0.94, 0.94, 0.94);
-      const material = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.48, metalness: 0.05 });
+      // 조명 효과가 필요한 경우
+      // const material = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.48, metalness: 0.05 });
+      // 조명 영향이 없는 기본 단색 재질로 변경
+      const material = new THREE.MeshBasicMaterial({ color: 0x151515 });
+
       for (const x of [-1, 0, 1]) for (const y of [-1, 0, 1]) for (const z of [-1, 0, 1]) {
         const cubie = new THREE.Mesh(geometry, material);
         cubie.position.set(x, y, z);
@@ -125,7 +223,10 @@
       const { position, rotation } = facePosition(face, row, col);
       const sticker = new THREE.Mesh(
         new THREE.PlaneGeometry(0.80, 0.80),
-        new THREE.MeshStandardMaterial({ color: hexColor, roughness: 0.36, metalness: 0.02, side: THREE.FrontSide }),
+        // 조명 효과 적용해야 하는 경우
+        // new THREE.MeshStandardMaterial({ color: hexColor, roughness: 0.36, metalness: 0.02, side: THREE.FrontSide }),
+        // 조명 영향이 없는 기본 단색 재질로 변경
+        new THREE.MeshBasicMaterial({ color: hexColor, side: THREE.FrontSide }),
       );
       sticker.position.copy(position);
       sticker.rotation.copy(rotation);
@@ -189,7 +290,8 @@
 
     async function loadDefaultState() {
       try {
-        const response = await fetch("captures/cube_state.json");
+        // 캐시 방지를 위해 타임스탬프 쿼리 매개변수를 추가합니다.
+        const response = await fetch(`captures/cube_state.json?t=${Date.now()}`);
         if (!response.ok) throw new Error("기본 captures/cube_state.json 파일이 없습니다.");
         renderState(await response.json());
       } catch (error) {
@@ -223,4 +325,5 @@
     });
   </script>
 </body>
+
 </html>
