@@ -9,6 +9,7 @@ from pathlib import Path
 import subprocess
 import sys
 from typing import Optional
+from urllib.parse import quote
 import webbrowser
 
 import cv2
@@ -215,7 +216,7 @@ def complete_session(
     return result
 
 
-def launch_3d_viewer(port: int) -> None:
+def launch_3d_viewer(port: int, state_path: Path) -> None:
     """별도 로컬 서버를 백그라운드로 시작하고 기본 브라우저에 뷰어를 연다."""
     viewer_server = Path(__file__).with_name("viewer_server.py")
     if not viewer_server.is_file():
@@ -228,8 +229,19 @@ def launch_3d_viewer(port: int) -> None:
         # 스캔 종료 후 서버용 콘솔 창이 따로 나타나지 않게 한다.
         popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
     try:
+        project_directory = viewer_server.parent.resolve()
+        try:
+            relative_state_path = state_path.resolve().relative_to(project_directory).as_posix()
+        except ValueError:
+            print(
+                "3D 뷰어 실행 실패: --output 폴더는 프로젝트 폴더 안에 있어야 합니다. "
+                f"현재 경로: {state_path.resolve()}"
+            )
+            return
+
         subprocess.Popen(command, **popen_kwargs)
-        url = f"http://127.0.0.1:{port}/viewer.html"
+        encoded_state_path = quote(relative_state_path, safe="/")
+        url = f"http://127.0.0.1:{port}/viewer.html?state={encoded_state_path}"
         webbrowser.open_new_tab(url)
         print(f"3D 뷰어를 엽니다: {url}")
     except OSError as error:
@@ -371,7 +383,10 @@ def main() -> None:
             key = cv2.waitKey(1) & 0xFF
             if key in (ord("q"), ord("Q")):
                 if completed_result is not None and completed_result.validation.is_valid:
-                    launch_3d_viewer(args.viewer_port)
+                    launch_3d_viewer(
+                        args.viewer_port,
+                        output_directory / "cube_state.json",
+                    )
                 break
 
             # 검증 실패 시 해당 면을 삭제하고 재촬영 모드로 돌아간다.
