@@ -72,10 +72,14 @@ def warp_face(
     source = order_corners(corners)
     destination = np.array(
         [
-            [0, 0],
-            [output_size - 1, 0],
+            # [0, 0],
+            # [output_size - 1, 0],
+            # [output_size - 1, output_size - 1],
+            # [0, output_size - 1],
             [output_size - 1, output_size - 1],
             [0, output_size - 1],
+            [0, 0],
+            [output_size - 1, 0],
         ],
         dtype=np.float32,
     )
