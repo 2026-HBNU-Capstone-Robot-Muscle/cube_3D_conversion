@@ -250,7 +250,8 @@ def launch_3d_viewer(port: int, state_path: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="큐브 6면 자동 캡처 프로토타입")
-    parser.add_argument("--source", default="0", help="카메라 번호 또는 IP 스트림 URL")
+    # parser.add_argument("--source", default="0", help="카메라 번호 또는 IP 스트림 URL")   # 노트북 내장카메라 및 데스크톱 웹캠
+    parser.add_argument("--source", default="1", help="카메라 번호 또는 IP 스트림 URL")     # 노트북 USB 웹캠
     parser.add_argument("--model", default=None, help="cube-detector.pt 파일 경로")
     parser.add_argument("--output", default="captures", help="캡처와 상태 JSON 저장 폴더")
     parser.add_argument("--width", type=int, default=1280, help="카메라 요청 너비")

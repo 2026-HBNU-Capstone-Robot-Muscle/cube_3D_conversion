@@ -92,7 +92,10 @@ class OpenCVCameraSource:
 
     def __init__(
         self,
-        source: CameraAddress = 0,
+        # 시스템 내장 카메라
+        # source: CameraAddress = 0,
+        # 외부 카메라
+        source: CameraAddress = 1,
         *,
         width: Optional[int] = 1280,
         height: Optional[int] = 720,
